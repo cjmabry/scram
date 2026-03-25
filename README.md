@@ -59,7 +59,7 @@ make dev
 ```
 
 Visit [http://localhost:8000/](http://localhost:8000/) for the site and
-[http://localhost:8000/cms/](http://localhost:8000/cms/) for the Wagtail admin.
+[http://localhost:8000/admin/](http://localhost:8000/admin/) for the Wagtail admin.
 
 ---
 
@@ -221,6 +221,11 @@ make watch
 
 # Run a specific test
 python manage.py test mysite.wtrx.tests.test_blocks
+
+# Test the template itself (generates a fresh project and runs its tests)
+wagtail start --template=. testproject .tmp/test-site
+python .tmp/test-site/manage.py migrate
+python .tmp/test-site/manage.py test testproject
 ```
 
 Create `mysite/settings/local.py` for personal overrides (gitignored):

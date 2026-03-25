@@ -430,12 +430,17 @@ always registered in `BodyStreamBlock` — hiding is purely a UI concern.
 
 ### BasePage (abstract)
 
-`BasePage` must include `TranslatableMixin` for wagtail-localize:
+`BasePage` must NOT include `TranslatableMixin` explicitly. In Wagtail 7,
+`TranslatableMixin` is already in `Page.__mro__` via `AbstractPage`. Adding it
+again causes `TypeError: Cannot create a consistent MRO`. Use:
 
 ```python
-class BasePage(TranslatableMixin, Page):
+class BasePage(Page):
     ...
 ```
+
+`wagtail-localize` correctly detects `BasePage` as translatable because
+`TranslatableMixin in BasePage.__mro__` is `True` through the inherited chain.
 
 | Field | Type | Notes |
 |---|---|---|
@@ -667,10 +672,11 @@ change `font-heading`, etc.
 ## Python Dependencies (pyproject.toml)
 
 ```
-django>=5.1,<5.3
-wagtail>=6.4,<6.5
+django>=5.2,<5.3           # Django 5.2 LTS
+wagtail>=7.0,<8.0          # Wagtail 7.0 LTS
 wagtail-localize
 wagtailmedia
+modelsearch                # Required by Wagtail 7.3 (extracted from wagtail.search)
 dj-database-url
 psycopg[binary]
 whitenoise
@@ -724,30 +730,28 @@ root), SiteSettings records, and optionally loads demo fixtures. Creating the
 
 ## Implementation Phases
 
-### Phase 0: Project Scaffolding
-- Create directory structure
-- `manage.py` with `{{ project_name }}` substitution
-- `settings/` (base.py, dev.py, production.py) following news-template patterns,
-  including i18n settings (`USE_I18N`, `WAGTAIL_I18N_ENABLED`, `LANGUAGES`)
-- `urls.py` with `i18n_patterns()` wrapper, `wsgi.py`
-- `pyproject.toml` (including `wagtail-localize`)
-- `package.json`, `tailwind.config.js` with semantic tokens
-- `Dockerfile`, `Makefile`, `.gitignore`, `.dockerignore`, `.nvmrc`
-- `wtrx/` app skeleton (`apps.py`, `__init__.py`)
-- `users/` app with custom user model
-- `search/` app with search view
+### ✅ Phase 0: Project Scaffolding — COMPLETE (commits 78333b5, 7112e0f, 91e730c)
+- Directory structure, `manage.py`, `settings/`, `urls.py`, `wsgi.py`
+- `pyproject.toml` (Python 3.13, Django 5.2 LTS, Wagtail 7.0 LTS)
+- `package.json`, `tailwind.config.js`, `Dockerfile`, `Makefile`, `.gitignore`
+- `wtrx/` app skeleton, `users/` app with custom User model + migration
+- `search/` app with search view (Query/add_hit removed — dropped in Wagtail 7.0)
 - Base templates (`base.html`, `base_page.html`, `404.html`, `500.html`)
-  with `{% load i18n %}` and `{% trans %}` on all UI strings,
-  all wrapped in `{% verbatim %}{% endverbatim %}`
-- Verify `wagtail start --template` works with the bare skeleton
+- `WAGTAILADMIN_BASE_URL` in `dev.py`/`production.py` (not `base.py`)
+- `{% extends %}` before `{% load %}` inside `{% verbatim %}` blocks
+- `wagtail start --template` confirmed working; 15/15 tests pass
 
-### Phase 1: Core Models & Settings
-- `wtrx/images.py` -- CustomImage model
-- `wtrx/models.py` -- BasePage, HeroMixin
-- `wtrx/site_settings.py` -- all 5 settings panels
-- Navigation link blocks (InternalLinkBlock, ExternalLinkBlock) for settings
-- Template tags for accessing settings in templates
-- Migrations
+### ✅ Phase 1: Core Models & Settings — COMPLETE
+- [x] `wtrx/images.py` -- CustomImage + CustomRendition models
+- [x] `wtrx/models.py` -- BasePage (`class BasePage(Page)` — no TranslatableMixin), HeroMixin
+- [x] `wtrx/site_settings.py` -- all 5 settings panels + InternalLinkBlock,
+  ExternalLinkBlock, FooterColumnBlock, SocialLinkBlock
+- [x] `wtrx/templatetags/wtrx_tags.py` -- tag library stub (settings accessed via context processor)
+- [x] `WAGTAILIMAGES_IMAGE_MODEL` uncommented in `settings/base.py`
+- [x] `wtrx/migrations/0001_initial.py` -- generated and verified
+- [x] Agent code review (issues addressed)
+- [x] Human code review
+- [x] Commit
 
 ### Phase 2: StreamField Blocks
 - `wtrx/blocks/content.py` -- 7 content blocks (use `gettext_lazy` for default values)

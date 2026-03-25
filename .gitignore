@@ -4,6 +4,7 @@ websites-for-all
 # wagtail start test output — never check generated projects into the template repo
 test-site/
 testproject/
+.tmp/
 
 # Python
 __pycache__/

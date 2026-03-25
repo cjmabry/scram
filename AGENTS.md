@@ -66,7 +66,11 @@ make load-data                           # Load fixtures + migrate + collectstat
 
 ```bash
 # Verify the template works with wagtail start
-wagtail start --template=. testproject /tmp/testproject
+# The test project goes into .tmp/ (hidden dir) — auto-excluded by Django's
+# startproject walker so the generated HTML files don't get re-processed.
+wagtail start --template=. testproject .tmp/test-site
+python .tmp/test-site/manage.py migrate
+python .tmp/test-site/manage.py test testproject
 ```
 
 ## Code Style
@@ -222,16 +226,22 @@ wagtail start --template=. testproject /tmp/testproject
    `ParentalKey` to `FormPage` and `related_name="form_fields"` — this is
    required for the form builder to work.
 
-3. **TranslatableMixin on BasePage**: `BasePage` must include `TranslatableMixin`
-   for wagtail-localize to work on all page types:
-   `class BasePage(TranslatableMixin, Page)`.
+3. **`TranslatableMixin` on `BasePage` — DO NOT add it**: In Wagtail 7,
+   `TranslatableMixin` is already in `Page.__mro__` via `AbstractPage`. Adding
+   it explicitly causes `TypeError: Cannot create a consistent MRO`:
+   ```python
+   # WRONG — causes MRO error in Wagtail 7:
+   class BasePage(TranslatableMixin, Page): ...
 
-   For `FormPage(BasePage, AbstractEmailForm)`, the full MRO resolves as:
-   `FormPage → BasePage → TranslatableMixin → AbstractEmailForm → … → Page`.
-    Django handles this correctly because `TranslatableMixin` does not itself
-    inherit from `Page`. However, `TranslatableMixin` adds unique constraints
-    that can produce unexpected migration conflicts if not handled carefully — run
-    `make migrate` (or `python manage.py makemigrations --check`) after adding any new page model.
+   # CORRECT:
+   class BasePage(Page): ...
+   ```
+   `wagtail-localize` correctly detects `BasePage` as translatable because
+   `TranslatableMixin in BasePage.__mro__` is `True` through the inherited chain.
+
+   For `FormPage(BasePage, AbstractEmailForm)`, the full MRO resolves correctly
+   without needing `TranslatableMixin` listed anywhere. Run `make migrate` (or
+   `python manage.py makemigrations --check`) after adding any new page model.
 
 4. **`{% verbatim %}` in HTML files**: Every `.html` file must start with
    `{% verbatim %}` (first line) and end with `{% endverbatim %}` (last line).
@@ -256,6 +266,52 @@ wagtail start --template=. testproject /tmp/testproject
    `class SocialLinkBlock(blocks.StructBlock)` explicitly so it serializes
    correctly in migrations and the Wagtail editor.
 
+8. **Wagtail settings base class**: Use `BaseSiteSetting` (not `BaseSetting`).
+   `BaseSetting` was renamed in Wagtail 4.x. The correct import is:
+   `from wagtail.contrib.settings.models import BaseSiteSetting, register_setting`
+
+9. **Wagtail settings access in templates**: The `wagtail.contrib.settings.context_processors.settings`
+   context processor is registered in `settings/base.py`, so `settings.<app_label>.ModelName`
+   is available in all templates automatically. Do NOT use `SettingProxy` directly —
+   it is an internal Wagtail API, not public. Use the context variable or the
+   `{% load wagtailsettings_tags %}{% get_settings %}` tag for explicit access.
+
+10. **`admin_form_fields` on the concrete Image class**: Define `admin_form_fields`
+    explicitly on `CustomImage` — do NOT use `AbstractImage.admin_form_fields` or
+    rely on inheritance. Example:
+    ```python
+    class CustomImage(AbstractImage):
+        admin_form_fields = Image.admin_form_fields + ("description",)
+    ```
+
+11. **Choices constants must be module-level**: If you use `gettext_lazy` in
+    field `choices`, define the choices list at module level (outside any class
+    body). Choices defined inside a class body with `gettext_lazy` cause migration
+    serialization failures because Django cannot serialize lazy translations in
+    that context at migration time.
+
+12. **Docstrings and comments in `.py` files must not contain `{% %}` or `{{ }}` template syntax**:
+    `wagtail start` processes `.py` files through the Django template engine and will
+    crash on any `{% tag %}` or `{{ variable }}` syntax it finds — including in
+    comments and docstrings. Use plain text instead:
+    - Wrong: `# Access: {{ settings.myapp.MyModel.field }}`
+    - Right: `# Access: settings.<app_label>.MyModel.field`
+
+13. **Test projects go in `.tmp/` (hidden dir)**: Use `.tmp/test-site/` as the
+    target directory when running `wagtail start --template`. Django's startproject
+    walker auto-skips directories whose name starts with `.`, so previously
+    generated HTML files won't be re-processed and cause `TemplateSyntaxError`.
+    A non-hidden `tmp/` directory was picked up by the walker and caused failures.
+
+14. **`wagtail.search.index` vs `modelsearch`**: In Wagtail 7.3+, `wagtail.search`
+    was partially extracted into a separate `modelsearch` package. Migrations
+    generated on Wagtail 7.3+ will import `wagtail.search.index` (the real module
+    is there), but you'll also see `modelsearch` as a listed dependency in some
+    environments. Both are correct depending on the Wagtail version.
+
+15. **`.tmp/` is gitignored**: The hidden test-site directory `.tmp/` is in
+    `.gitignore`. Never check generated test projects into the template repo.
+
 ## Git Conventions
 
 - Branch from `main`. Descriptive branch names: `feature/signup-block`,
@@ -270,6 +326,9 @@ Keep the following files up to date whenever relevant changes are made:
 
 - **`PLAN.md`** — update the frontend build section, phases, and architecture notes
   whenever the tech stack, file structure, or implementation decisions change.
+  **Phase status must be kept current**: mark phases `✅ COMPLETE`, `🔄 IN PROGRESS`,
+  or plain (not started). Within an in-progress phase, use `[x]` / `[ ]` checkboxes
+  to track individual items. Update phase status in the same commit as the work.
 - **`AGENTS.md`** — update build commands, pitfalls, and architecture rules to match
   the current state of the repo. This file is the source of truth for agents.
 - **`README.md`** — update commands, stack description, and project structure whenever
@@ -280,12 +339,18 @@ same commit as the code change they describe.
 
 ## Code Review Requirement
 
-**Before creating any commit**, run the `code-reviewer` agent on all changed
-files. Use the Task tool with `subagent_type: "code-reviewer"` and provide:
-- A summary of what was built and why
-- The full list of files changed
-- Any specific areas of concern or uncertainty
+**Before creating any commit**, two reviews are required in this order:
 
-Only proceed with the commit after the reviewer has responded and any issues
-it raises have been addressed. This applies to all commits, including small
-fixes.
+1. **Agent code review** — Run the `code-reviewer` agent on all changed files
+   using the Task tool with `subagent_type: "code-reviewer"`. Provide:
+   - A summary of what was built and why
+   - The full list of files changed
+   - Any specific areas of concern or uncertainty
+
+   Address any issues the reviewer raises before proceeding.
+
+2. **Human code review** — Present the changes to the user and explicitly ask
+   them to review. Wait for their sign-off before committing.
+
+Only create the commit after both reviews are complete and any issues have
+been addressed. This applies to all commits, including small fixes.

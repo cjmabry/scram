@@ -82,6 +82,7 @@ TEMPLATES = [
                 "django.template.context_processors.request",
                 "django.contrib.auth.context_processors.auth",
                 "django.contrib.messages.context_processors.messages",
+                "wagtail.contrib.settings.context_processors.settings",
             ],
         },
     },
@@ -142,8 +143,7 @@ MEDIA_URL = "/media/"
 # Wagtail settings
 WAGTAIL_SITE_NAME = "{{ project_name }}"
 # WAGTAILADMIN_BASE_URL is set in dev.py and production.py
-# Uncomment after Phase 1 (CustomImage model must exist first):
-# WAGTAILIMAGES_IMAGE_MODEL = "{{ project_name }}_wtrx.CustomImage"
+WAGTAILIMAGES_IMAGE_MODEL = "{{ project_name }}_wtrx.CustomImage"
 
 WAGTAILSEARCH_BACKENDS = {
     "default": {
