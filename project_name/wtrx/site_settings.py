@@ -14,6 +14,8 @@ from wagtail.blocks import (
 from wagtail.contrib.settings.models import BaseSiteSetting, register_setting
 from wagtail.fields import StreamField
 
+from .images import CustomImage
+
 
 # ---------------------------------------------------------------------------
 # Navigation link blocks (used by NavigationSettings and FooterSettings)
@@ -115,7 +117,7 @@ class BrandingSEOSettings(BaseSiteSetting):
     """Settings > Branding & SEO — logo, favicon, default meta image, site description."""
 
     logo = models.ForeignKey(
-        "{{ project_name }}_wtrx.CustomImage",
+        CustomImage,
         null=True,
         blank=True,
         on_delete=models.SET_NULL,
@@ -124,7 +126,7 @@ class BrandingSEOSettings(BaseSiteSetting):
         help_text=_("Primary site logo. Displayed in the header."),
     )
     dark_logo = models.ForeignKey(
-        "{{ project_name }}_wtrx.CustomImage",
+        CustomImage,
         null=True,
         blank=True,
         on_delete=models.SET_NULL,
@@ -133,7 +135,7 @@ class BrandingSEOSettings(BaseSiteSetting):
         help_text=_("Logo variant for dark backgrounds."),
     )
     favicon = models.ForeignKey(
-        "{{ project_name }}_wtrx.CustomImage",
+        CustomImage,
         null=True,
         blank=True,
         on_delete=models.SET_NULL,
@@ -142,7 +144,7 @@ class BrandingSEOSettings(BaseSiteSetting):
         help_text=_("Browser favicon (square image, 32×32 px or SVG)."),
     )
     default_meta_image = models.ForeignKey(
-        "{{ project_name }}_wtrx.CustomImage",
+        CustomImage,
         null=True,
         blank=True,
         on_delete=models.SET_NULL,

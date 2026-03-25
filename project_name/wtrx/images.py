@@ -1,42 +1,37 @@
 from django.db import models
-from wagtail.images.models import AbstractImage, AbstractRendition
+from django.utils.translation import gettext_lazy as _
+from wagtail.images.models import AbstractImage, AbstractRendition, Image
 
 
 class CustomImage(AbstractImage):
     """
     Custom image model.
 
-    Empty subclass of AbstractImage so future projects can add fields
-    (alt text defaults, image credit, copyright, etc.) without migrating
-    away from Wagtail's built-in Image — which would require rewriting all
-    FK references and rebuilding the rendition cache.
+    Extends AbstractImage with a credit field for photographer/source attribution.
+    Additional fields (copyright, license, etc.) can be added here without
+    migrating away from Wagtail's built-in Image model.
 
     WAGTAILIMAGES_IMAGE_MODEL in settings/base.py points to this model.
-
-    Extend this class to add project-specific image fields.
     """
 
-    admin_form_fields = (
-        "title",
-        "file",
-        "description",
-        "collection",
-        "tags",
-        "focal_point_x",
-        "focal_point_y",
-        "focal_point_width",
-        "focal_point_height",
+    credit = models.CharField(
+        max_length=255,
+        blank=True,
+        verbose_name=_("credit"),
+        help_text=_("Photographer or source attribution (e.g. 'Photo: Jane Smith')."),
     )
 
-    class Meta:
-        verbose_name = "image"
-        verbose_name_plural = "images"
+    admin_form_fields = Image.admin_form_fields + ("credit",)
+
+    class Meta(AbstractImage.Meta):
+        verbose_name = _("image")
+        verbose_name_plural = _("images")
 
     @property
     def object_position_style(self):
         """
         Returns a full CSS object-position declaration derived from the focal point.
-        Use in templates: style="{{ page.hero_image.object_position_style }}"
+        Use in templates: style="<value of page.hero_image.object_position_style>"
         Mirrors the convention of Wagtail's built-in background_position_style property.
         """
         if self.has_focal_point() and self.width and self.height:
@@ -53,8 +48,8 @@ class CustomRendition(AbstractRendition):
     image = models.ForeignKey(
         CustomImage,
         on_delete=models.CASCADE,
-        related_name="renditions",
+        related_name='renditions',
     )
 
-    class Meta:
-        unique_together = (("image", "filter_spec", "focal_point_key"),)
+    class Meta(AbstractRendition.Meta):
+        unique_together = (('image', 'filter_spec', 'focal_point_key'),)

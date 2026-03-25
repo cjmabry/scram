@@ -26,7 +26,7 @@ class BasePage(Page):
     """
 
     meta_image = models.ForeignKey(
-        "{{ project_name }}_wtrx.CustomImage",
+        CustomImage,
         null=True,
         blank=True,
         on_delete=models.SET_NULL,
@@ -93,7 +93,7 @@ class HeroMixin(models.Model):
         help_text=_("Optional subtext displayed below the headline."),
     )
     hero_image = models.ForeignKey(
-        "{{ project_name }}_wtrx.CustomImage",
+        CustomImage,
         null=True,
         blank=True,
         on_delete=models.SET_NULL,

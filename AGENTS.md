@@ -24,29 +24,105 @@ The repo root IS the template. `project_name/` is renamed by `wagtail start`.
 - `static_src/` -- Frontend source (Tailwind, JS, Sass).
 - `static_compiled/` -- Tailwind CLI output (committed to repo).
 
-## Build Commands
+## How to Dev and Test This Repo
 
-### Python (via Make)
+### Critical constraint: you cannot run Django commands in this repo directly
+
+`manage.py` and `settings/base.py` contain `{{ project_name }}` tokens that are
+only resolved when `wagtail start` processes them. Running `python manage.py` from
+the repo root will always fail with `ModuleNotFoundError: No module named '{{ project_name }}'`.
+
+The Makefile commands (`make test`, `make dev`, `make migrate`, etc.) are intended
+to be run **from a generated site**, not from this repo root. The one exception is
+`make venv` — `pyproject.toml` has no template tokens, so installing Python
+dependencies into a `.venv` from the repo root works fine and gives you the correct
+versions of Django, Wagtail, etc. for editor tooling and type checking.
+
+### The two workflows
+
+**1. Editing template files** (models, blocks, templates, static files, settings)
+
+Just edit files directly in the repo. No server or Django needed. The `.venv` from
+`make venv` gives editors (LSP, type checkers) access to the installed packages.
 
 ```bash
-make venv                                # Create .venv and install all dependencies
-make migrate                             # Run migrations
-make createsuperuser                     # Create admin user
-make dev                                 # Dev server at localhost:8000
-make setup                               # Interactive initial setup
-make test                                # Run all tests
+make venv           # one-time: installs Django, Wagtail, etc. into .venv
+source .venv/bin/activate
+# edit files freely
 ```
 
-For granular test runs, call manage.py directly:
+**2. Running, testing, and verifying changes**
+
+You must generate a test site first, then run everything inside it.
 
 ```bash
-python manage.py test project_name.wtrx               # Run tests for wtrx app only
-python manage.py test project_name.wtrx.tests.test_blocks  # Run a single test module
-python manage.py test project_name.wtrx.tests.test_blocks.TestImageBlock  # Single test class
-python manage.py test project_name.wtrx.tests.test_blocks.TestImageBlock.test_required_fields  # Single test
+# Generate a fresh test site (always use .tmp/ — it's gitignored and auto-excluded
+# by Django's startproject walker so previously generated HTML won't be re-processed)
+wagtail start --template=. testproject .tmp/test-site
+
+# Set up the test site
+cd .tmp/test-site
+make venv
+source .venv/bin/activate
+make migrate
+make test                     # run all tests
+make dev                      # run dev server at localhost:8000
 ```
 
-### Frontend
+Granular test runs inside the test site:
+
+```bash
+python manage.py test testproject.wtrx                              # wtrx app only
+python manage.py test testproject.wtrx.tests.test_images            # single module
+python manage.py test testproject.wtrx.tests.test_images.TestObjectPositionStyle  # single class
+python manage.py test testproject.wtrx.tests.test_images.TestObjectPositionStyle.test_focal_point_center  # single test
+```
+
+**3. Iterating: applying template changes to an existing test site**
+
+`wagtail start` generates a project once. After you edit template files, you have
+two options:
+
+- **Re-generate** (cleanest): delete `.tmp/test-site` and run `wagtail start` again.
+  Always required if you changed `{{ project_name }}` token substitutions in `.py` files.
+
+- **Copy changed files** (faster for template-only or Python changes that don't
+  affect `{{ project_name }}` substitution): manually copy the changed files from
+  `project_name/` into `.tmp/test-site/testproject/`, replacing `project_name` with
+  `testproject` in any imports or references.
+
+Re-generating is always the safer option and is strongly preferred.
+
+### Generating Migrations
+
+Migrations CANNOT be generated directly in this repo. Always generate via a test site
+and copy them back:
+
+```bash
+# 1. Generate a fresh test site from the current template state
+wagtail start --template=. testproject .tmp/test-site
+cd .tmp/test-site && make venv && source .venv/bin/activate
+
+# 2. Generate migrations inside the test site
+python manage.py makemigrations
+
+# 3. Copy new/changed migration files back into the template repo,
+#    replacing the resolved project name with {{ project_name }}
+#    in any import or reference (e.g. "testproject_wtrx" -> "{{ project_name }}_wtrx")
+cp .tmp/test-site/testproject/wtrx/migrations/0002_*.py \
+   /path/to/wagtail-wtr/project_name/wtrx/migrations/
+
+# 4. Verify migrations apply cleanly
+python manage.py migrate
+python manage.py test testproject
+```
+
+Never hand-write migrations. See pitfall #16 for details.
+
+### Frontend (CSS/JS)
+
+The frontend build does NOT require a generated test site — `npm`/Tailwind CLI
+operate only on files in `static_src/` and `templates/`, which have no template tokens.
 
 ```bash
 npm install                              # Install Node dependencies (once only)
@@ -55,22 +131,14 @@ make build-prod                          # Production CSS build (minified)
 make watch                               # Watch mode (rebuilds CSS on change)
 ```
 
+`static_compiled/css/main.css` is committed to the repo so generated sites have
+working CSS immediately without needing to run `npm install` and `make build` first.
+
 ### Docker
 
 ```bash
-docker build -t wagtail-wtr .            # Build image
-make load-data                           # Load fixtures + migrate + collectstatic
-```
-
-### Template Testing
-
-```bash
-# Verify the template works with wagtail start
-# The test project goes into .tmp/ (hidden dir) — auto-excluded by Django's
-# startproject walker so the generated HTML files don't get re-processed.
-wagtail start --template=. testproject .tmp/test-site
-python .tmp/test-site/manage.py migrate
-python .tmp/test-site/manage.py test testproject
+docker build -t wagtail-wtr .            # Build image (from repo root)
+# Run inside a generated site for load-data / collectstatic
 ```
 
 ## Code Style
@@ -277,12 +345,17 @@ python .tmp/test-site/manage.py test testproject
    `{% load wagtailsettings_tags %}{% get_settings %}` tag for explicit access.
 
 10. **`admin_form_fields` on the concrete Image class**: Define `admin_form_fields`
-    explicitly on `CustomImage` — do NOT use `AbstractImage.admin_form_fields` or
-    rely on inheritance. Example:
+    explicitly on `CustomImage` using `Image.admin_form_fields` as the base — do NOT
+    copy the tuple verbatim or rely on inheritance from `AbstractImage`. This ensures
+    future Wagtail updates to the base field list are inherited automatically. Only
+    append fields that are actually defined on `CustomImage` itself:
     ```python
     class CustomImage(AbstractImage):
-        admin_form_fields = Image.admin_form_fields + ("description",)
+        credit = models.CharField(max_length=255, blank=True)
+        admin_form_fields = Image.admin_form_fields + ("credit",)
     ```
+    Note: `description` is already part of `Image.admin_form_fields` in Wagtail 7 —
+    do not append it again.
 
 11. **Choices constants must be module-level**: If you use `gettext_lazy` in
     field `choices`, define the choices list at module level (outside any class
@@ -311,6 +384,16 @@ python .tmp/test-site/manage.py test testproject
 
 15. **`.tmp/` is gitignored**: The hidden test-site directory `.tmp/` is in
     `.gitignore`. Never check generated test projects into the template repo.
+
+16. **Never hand-write migrations**: Migrations MUST be generated by running
+    `python manage.py makemigrations` inside a test site created with
+    `wagtail start --template`. The template repo itself cannot run Django
+    commands directly because `manage.py` and `settings/base.py` contain
+    `{{ project_name }}` tokens that are unresolved until `wagtail start`
+    processes them. Hand-written migrations are error-prone and will drift
+    from what Django actually generates. Always use the Template Testing
+    workflow (see "How to Dev and Test This Repo" above) to produce migrations, then copy
+    them back into the template repo.
 
 ## Git Conventions
 
