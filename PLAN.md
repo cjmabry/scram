@@ -614,11 +614,17 @@ base.html
 - Copyright line (from FooterSettings.copyright_text, fallback: "(c) {year} {site name}")
 
 ### Hero (`components/hero.html`)
-- h1: `hero_headline` if set, otherwise `page.title`
-- Subtext: `hero_copy`
-- Image: `hero_image`
-- CTA button: `hero_link_text` + `hero_link_page`/`hero_link_url`
-- Same template used by all page types
+- h1: `hero.headline` if set, otherwise `page.title`
+- Subtext: `hero.copy` (rendered via `|richtext` filter when `hero.copy_is_block=False`)
+- Image: `hero.image`
+- CTA button: `hero.link_text` + `hero.link_page`/`hero.link_url`
+- Same template used by all page types and by `HeroBlock` (mid-page)
+
+**Context contract**: the template consumes a `hero` dict with keys:
+`headline`, `copy`, `copy_is_block`, `image`, `link_text`, `link_page`, `link_url`.
+Both `HeroBlock.get_context()` (Phase 2) and `HeroMixin` page `get_context()`
+(Phase 3) MUST build this dict. For both, `copy_is_block=False` because `copy`
+is either a `RichTextBlock` value or a `RichTextField` string — both use `|richtext`.
 
 HTML templates use standard Django template syntax. No special wrappers needed.
 

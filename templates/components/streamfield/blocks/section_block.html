@@ -1,0 +1,18 @@
+{% load i18n wagtailcore_tags %}
+<section
+    class="w-full
+           {% if value.background == 'dark' %}bg-dark text-light
+           {% elif value.background == 'primary' %}bg-primary-700 text-light
+           {% elif value.background == 'muted' %}bg-neutral-100 text-neutral-800
+           {% else %}bg-light text-dark{% endif %}
+           {% if value.padding == 'sm' %}py-8
+           {% elif value.padding == 'lg' %}py-24
+           {% else %}py-16{% endif %}"
+    {% if value.anchor_id %}id="{{ value.anchor_id }}"{% endif %}
+>
+    <div class="mx-auto max-w-5xl px-4 sm:px-6 lg:px-8">
+        {% for block in value.content %}
+            {% include_block block %}
+        {% endfor %}
+    </div>
+</section>

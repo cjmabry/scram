@@ -1,0 +1,13 @@
+{% load i18n %}
+<blockquote class="my-8 border-l-4 border-primary-600 pl-6">
+    <p class="text-xl font-heading italic text-neutral-800 leading-relaxed">
+        &ldquo;{{ value.quote }}&rdquo;
+    </p>
+    {% if value.attribution %}
+        <footer class="mt-3 text-sm text-neutral-500">
+            <cite>
+                {{ value.attribution }}{% if value.title %}, {{ value.title }}{% endif %}
+            </cite>
+        </footer>
+    {% endif %}
+</blockquote>

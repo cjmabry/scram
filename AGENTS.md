@@ -207,6 +207,25 @@ make load-data                  # migrate + loaddata fixtures/demo.json + collec
    block for placing a hero-style section *within* the body StreamField (mid-page).
    They use the same component template (`components/hero.html`) but serve
    different structural roles.
+
+   **`components/hero.html` context contract** — both `HeroBlock.get_context()`
+   and any `HeroMixin` page's `get_context()` MUST pass a `hero` dict with
+   exactly these keys:
+   ```python
+   context["hero"] = {
+       "headline": str | None,       # displayed h1; falls back to page.title in template
+       "copy": RichText | str | None,# supporting copy
+       "copy_is_block": bool,        # False = use |richtext filter; True = use {% include_block %}
+       "image": CustomImage | None,  # hero image
+       "link_text": str | None,      # CTA button label
+       "link_page": Page | None,     # CTA internal page link
+       "link_url": str | None,       # CTA external URL
+   }
+   ```
+   For `HeroBlock`: `content` is a `RichTextBlock`, so `copy_is_block=False`.
+   For `HeroMixin` pages (Phase 3): `hero_copy` is a `RichTextField`, so
+   `copy_is_block=False` there too. Set `copy_is_block=True` only if `copy` is
+   a StreamField block value (not currently used anywhere).
 8. **wtrx/ extraction readiness**: Keep `wtrx/` structured as if it will become
    a standalone pip package. Concrete models (CustomImage, settings models) will
    ship with their own migrations when extracted. Abstract models (BasePage,

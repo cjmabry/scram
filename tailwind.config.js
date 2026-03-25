@@ -7,6 +7,12 @@ module.exports = {
     theme: {
         extend: {
             colors: {
+                // Semantic surface tokens — sites override these in theme.extend.colors
+                // to control light/dark backgrounds and contrasting text without touching
+                // every template. 'light' = white/near-white surface; 'dark' = near-black
+                // surface. Use text-light on dark backgrounds, text-dark on light surfaces.
+                light: '#ffffff',
+                dark: '#171717',
                 primary: {
                     50: '#f0f9ff',
                     100: '#e0f2fe',

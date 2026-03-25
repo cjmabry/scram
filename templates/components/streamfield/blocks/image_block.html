@@ -1,0 +1,17 @@
+{% load i18n wagtailimages_tags %}
+<figure class="my-4">
+    {% image value.image width-1200 as img %}
+    <img
+        src="{{ img.url }}"
+        width="{{ img.width }}"
+        height="{{ img.height }}"
+        alt="{{ value.alt_text|default:value.image.title }}"
+        class="w-full rounded-lg"
+        loading="lazy"
+    />
+    {% if value.caption %}
+        <figcaption class="mt-2 text-sm text-neutral-500 text-center">
+            {{ value.caption }}
+        </figcaption>
+    {% endif %}
+</figure>

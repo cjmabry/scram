@@ -1,0 +1,18 @@
+{% load i18n wagtailcore_tags %}
+<div class="my-8 rounded-lg bg-neutral-50 px-6 py-10">
+    <div class="mx-auto max-w-2xl">
+        <h2 class="font-heading text-2xl font-bold text-dark md:text-3xl">{{ value.heading }}</h2>
+        {% if value.description %}
+            <div class="prose prose-neutral mt-4 max-w-none">
+                {{ value.description|richtext }}
+            </div>
+        {% endif %}
+        <div class="mt-8">
+            {# Action Network embed widget — replace XXXXXXXX with the action ID. #}
+            <link href="https://actionnetwork.org/css/style.en_US.css" rel="stylesheet" type="text/css" />
+            <div id="can-{{ value.action_network_id }}"></div>
+            <script>window.ANOptions = window.ANOptions || {};</script>
+            <script src="https://actionnetwork.org/widgets/v5/{{ value.action_type }}/{{ value.action_network_id }}?format=js&source=widget" async></script>
+        </div>
+    </div>
+</div>

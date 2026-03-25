@@ -1,0 +1,24 @@
+{% load i18n wagtailcore_tags %}
+<figure class="my-4">
+    {% if value.embed_url %}
+        <div class="relative aspect-video w-full overflow-hidden rounded-lg">
+            {% embed value.embed_url %}
+        </div>
+    {% elif value.media_file %}
+        <video
+            controls
+            class="w-full rounded-lg"
+            {% if value.media_file.thumbnail %}poster="{{ value.media_file.thumbnail.url }}"{% endif %}
+        >
+            {% for source in value.media_file.sources %}
+                <source src="{{ source.src }}" type="{{ source.type }}">
+            {% endfor %}
+            {% trans "Your browser does not support the video tag." %}
+        </video>
+    {% endif %}
+    {% if value.caption %}
+        <figcaption class="mt-2 text-sm text-neutral-500 text-center">
+            {{ value.caption }}
+        </figcaption>
+    {% endif %}
+</figure>

@@ -1,10 +1,10 @@
 {% load i18n wagtailcore_tags %}
-<header class="bg-white border-b border-neutral-200">
+<header class="bg-light border-b border-neutral-200">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div class="flex items-center justify-between h-16">
             {# Logo — replaced with BrandingSEOSettings.logo in Phase 1 #}
             <a href="/" class="flex items-center shrink-0">
-                <span class="font-heading font-bold text-xl text-neutral-900">{{ site.site_name }}</span>
+                <span class="font-heading font-bold text-xl text-dark">{{ site.site_name }}</span>
             </a>
 
             {# Desktop nav #}
@@ -16,7 +16,7 @@
             <div class="flex items-center gap-4">
                 <button
                     type="button"
-                    class="md:hidden p-2 text-neutral-600 hover:text-neutral-900"
+                    class="md:hidden p-2 text-neutral-600 hover:text-dark"
                     aria-label="{% trans 'Open menu' %}"
                     aria-expanded="false"
                     aria-controls="mobile-menu"

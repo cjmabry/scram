@@ -1,0 +1,28 @@
+{% load i18n wagtailimages_tags %}
+<div class="flex flex-col overflow-hidden rounded-lg border border-neutral-200 bg-light shadow-sm">
+    {% if card.image %}
+        {% image card.image fill-640x360 as img %}
+        <div class="aspect-video overflow-hidden">
+            <img src="{{ img.url }}" width="{{ img.width }}" height="{{ img.height }}" alt="{{ card.image.title }}" class="h-full w-full object-cover" loading="lazy">
+        </div>
+    {% endif %}
+    <div class="flex flex-1 flex-col p-5">
+        <h3 class="font-heading text-lg font-semibold text-dark">{{ card.heading }}</h3>
+        {% if card.description %}
+            <p class="mt-2 flex-1 text-sm text-neutral-600">{{ card.description }}</p>
+        {% endif %}
+        {% if card.link_page or card.link_url %}
+            <div class="mt-4">
+                {% if card.link_page %}
+                    <a href="{{ card.link_page.url }}" class="text-sm font-semibold text-primary-600 hover:text-primary-700">
+                        {% trans "Learn more" %} &rarr;
+                    </a>
+                {% elif card.link_url %}
+                    <a href="{{ card.link_url }}" rel="noopener noreferrer" class="text-sm font-semibold text-primary-600 hover:text-primary-700">
+                        {% trans "Learn more" %} &rarr;
+                    </a>
+                {% endif %}
+            </div>
+        {% endif %}
+    </div>
+</div>

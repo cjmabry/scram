@@ -1,0 +1,53 @@
+{% load i18n wagtailimages_tags wagtailcore_tags %}
+{#
+  Shared hero component used by both HeroMixin (page-level) and HeroBlock (StreamField).
+
+  Expects a `hero` dict (or object) with these keys/attributes:
+    headline  — the heading text (str)
+    copy      — optional richtext value (rendered via |richtext or {% include_block %})
+    copy_is_block — True if copy should be rendered via {% include_block %}, False for |richtext
+    image     — optional CustomImage instance
+    link_text — optional CTA button label (str)
+    link_page — optional internal Page
+    link_url  — optional external URL (str)
+
+  Page templates using HeroMixin should pass:
+    {% include "components/hero.html" with hero=hero_context %}
+  where hero_context is built in the page's get_context() as a plain dict
+  with the above keys, normalised from the hero_* model fields.
+
+  HeroBlock.get_context() builds this dict automatically.
+#}
+<div class="relative overflow-hidden bg-dark">
+
+    {% if hero.image %}
+        {% image hero.image fill-1600x700 as bg %}
+        <img src="{{ bg.url }}" width="{{ bg.width }}" height="{{ bg.height }}" alt="" role="presentation"
+             class="absolute inset-0 h-full w-full object-cover opacity-40"
+             style="{{ hero.image.object_position_style }}" loading="lazy">
+    {% endif %}
+
+    <div class="relative mx-auto max-w-4xl px-4 py-20 sm:px-6 sm:py-28 lg:px-8 text-center text-light">
+
+        <h1 class="font-heading text-4xl font-bold tracking-tight sm:text-5xl lg:text-6xl">
+            {{ hero.headline }}
+        </h1>
+
+        {% if hero.copy %}
+            <div class="mt-4 prose prose-invert text-lg max-w-2xl mx-auto">
+                {% if hero.copy_is_block %}
+                    {% include_block hero.copy %}
+                {% else %}
+                    {{ hero.copy|richtext }}
+                {% endif %}
+            </div>
+        {% endif %}
+
+        {% if hero.link_text %}
+            <div class="mt-8">
+                {% include "components/button.html" with text=hero.link_text link_page=hero.link_page link_url=hero.link_url style="primary" %}
+            </div>
+        {% endif %}
+
+    </div>
+</div>
