@@ -27,6 +27,7 @@ dev:
 	python manage.py runserver
 
 build-js:
+	mkdir -p static_compiled/js
 	rm -rf static_compiled/js/*
 	cp -r static_src/javascript/* static_compiled/js/
 
