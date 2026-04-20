@@ -17,10 +17,6 @@ services:
     port: 8000
     # Run collectstatic before the new container takes traffic so gunicorn
     # starts immediately and the health check responds without delay.
-    # S3 path: uploads static assets to S3 before the container launches.
-    # WhiteNoise path: this runs collectstatic in the pre-deploy runner
-    # (output is discarded), then start.sh re-runs it inside the real
-    # container where the manifest is needed. The duplication is harmless.
     preDeployCommand: "python manage.py collectstatic --noinput"
     envVars:
       - key: DATABASE_URL
@@ -47,6 +43,10 @@ services:
       # Example: https://mysite.onrender.com
       - key: WAGTAILADMIN_BASE_URL
         sync: false
+      # Render injects PORT and forwards inbound traffic to this port.
+      # Must match the port: field above and what gunicorn binds to.
+      - key: PORT
+        value: "8000"
       # --- S3 storage (optional but strongly recommended) ---
       # When set, both static files (CSS/JS/fonts) and uploaded media (images,
       # documents) are stored in S3 under static/ and media/ prefixes.

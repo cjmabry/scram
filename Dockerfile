@@ -10,7 +10,7 @@ COPY static_src/ ./static_src/
 COPY templates/ ./templates/
 COPY wtrx/templates/ ./wtrx/templates/
 RUN npm run build:prod && \
-    cp -r static_src/javascript static_compiled/js && \
+    cp -r static_src/javascript/. static_compiled/js && \
     cp -r static_src/fonts/. static_compiled/fonts && \
     cp -r static_src/images/. static_compiled/images
 
@@ -43,11 +43,11 @@ COPY --chown=app:app --from=frontend /app/static_compiled/ ./static_compiled/
 # Ensure the entrypoint is executable (git does not reliably preserve +x bits).
 RUN chmod +x bin/start.sh
 
-# collectstatic is intentionally NOT run at build time:
-# - When S3 is configured, it runs in render.yaml's preDeployCommand so AWS
-#   credentials (available at runtime) are used, not dummy build-time values.
-# - When using WhiteNoise, it runs in start.sh so the manifest is written to
-#   the correct container filesystem at startup.
+# collectstatic runs at deploy time via render.yaml's preDeployCommand (S3 path)
+# or at container startup via bin/start.sh (WhiteNoise path). It is intentionally
+# omitted from the Docker build so gunicorn starts immediately when the container
+# launches and the health check responds without delay.
+
 USER app
 
 EXPOSE 8000

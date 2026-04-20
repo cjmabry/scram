@@ -21,6 +21,14 @@ if [ -z "${AWS_STORAGE_BUCKET_NAME:-}" ]; then
     # WhiteNoise path: manifest must be written to this container's STATIC_ROOT.
     python manage.py collectstatic --noinput
 fi
+# TODO: When S3 is configured (AWS_STORAGE_BUCKET_NAME is set), collectstatic is
+# intentionally skipped here and is supposed to run via render.yaml's preDeployCommand.
+# However, preDeployCommand has not been confirmed to run reliably — its output does
+# not appear in Render's runtime deploy logs. Until this is investigated and resolved,
+# after any deploy that changes CSS or other static assets you must manually run:
+#   python manage.py collectstatic --noinput
+# via the Render dashboard Shell tab (select the running service → Shell).
+# See PLAN.md Phase 17 for the tracked fix.
 
 exec gunicorn wagtail_wtr.wsgi:application \
     --bind "0.0.0.0:${PORT:-8000}" \

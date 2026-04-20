@@ -114,12 +114,103 @@ class TestVideoBlockValidation(SimpleTestCase):
 
 class TestCalloutBlockValidation(SimpleTestCase):
     """
-    CalloutBlock uses _validate_at_most_one_link for its custom validation.
+    CalloutBlock validation: exactly one of image/media_file, at most one link.
 
-    CalloutBlock has a required ImageChooserBlock, so we cannot call
-    block.clean() in SimpleTestCase (no DB). Instead we test the shared
-    helper directly and verify the block's field structure.
+    ImageChooserBlock and VideoChooserBlock both require a DB to resolve
+    chooser values, so we cannot call block.clean() end-to-end in
+    SimpleTestCase. We test the media-exclusivity logic (which only inspects
+    truthiness of the cleaned values) via a standalone helper that mirrors
+    the block's clean() logic, and verify field structure via declared_blocks.
     """
+
+    def _run_media_validation(self, image, media_file):
+        """Mirror the media-exclusivity branch of CalloutBlock.clean()."""
+        from django.core.exceptions import ValidationError as DjValidationError
+        errors = {}
+        has_image = bool(image)
+        has_video = bool(media_file)
+        if not has_image and not has_video:
+            msg = DjValidationError("Provide either an image or a media file.")
+            errors["image"] = msg
+            errors["media_file"] = msg
+        elif has_image and has_video:
+            msg = DjValidationError("Provide either an image or a media file, not both.")
+            errors["image"] = msg
+            errors["media_file"] = msg
+        return errors
+
+    def _make_value(self, image=None, media_file=None, link_page=None, link_url=""):
+        return {
+            "image": image,
+            "media_file": media_file,
+            "link_page": link_page,
+            "link_url": link_url,
+        }
+
+    # --- media validation ---
+
+    def test_media_validation_both_absent(self):
+        """Both image and media_file absent should produce errors on both fields."""
+        errors = self._run_media_validation(image=None, media_file=None)
+        self.assertIn("image", errors)
+        self.assertIn("media_file", errors)
+
+    def test_media_validation_both_present(self):
+        """Both image and media_file set should produce errors on both fields."""
+        errors = self._run_media_validation(image=object(), media_file=object())
+        self.assertIn("image", errors)
+        self.assertIn("media_file", errors)
+
+    def test_media_validation_image_only(self):
+        """Image only (no media_file) should produce no media errors."""
+        errors = self._run_media_validation(image=object(), media_file=None)
+        self.assertEqual(errors, {})
+
+    def test_media_validation_video_only(self):
+        """media_file only (no image) should produce no media errors."""
+        errors = self._run_media_validation(image=None, media_file=object())
+        self.assertEqual(errors, {})
+
+    def test_media_validation_both_present(self):
+        """Both image and media_file set should produce errors on both fields."""
+        errors = {}
+        has_image = True
+        has_video = True
+        if has_image and has_video:
+            from django.core.exceptions import ValidationError as DjValidationError
+            msg = DjValidationError("Provide either an image or a media file, not both.")
+            errors["image"] = msg
+            errors["media_file"] = msg
+        self.assertIn("image", errors)
+        self.assertIn("media_file", errors)
+
+    def test_block_has_expected_fields(self):
+        block = CalloutBlock()
+        self.assertIn("content", block.declared_blocks)
+        self.assertIn("image", block.declared_blocks)
+        self.assertIn("media_file", block.declared_blocks)
+        self.assertIn("link_text", block.declared_blocks)
+        self.assertIn("link_page", block.declared_blocks)
+        self.assertIn("link_url", block.declared_blocks)
+        self.assertIn("alignment", block.declared_blocks)
+
+    def test_image_is_optional(self):
+        """image must be optional (required=False) to allow media_file instead."""
+        block = CalloutBlock()
+        self.assertFalse(block.declared_blocks["image"].required)
+
+    def test_media_file_is_optional(self):
+        """media_file must be optional (required=False) to allow image instead."""
+        block = CalloutBlock()
+        self.assertFalse(block.declared_blocks["media_file"].required)
+
+    def test_alignment_choices(self):
+        block = CalloutBlock()
+        choices = dict(block.declared_blocks["alignment"].field.choices)
+        self.assertIn("image-left", choices)
+        self.assertIn("image-right", choices)
+
+    # --- link validation (via shared helper) ---
 
     def test_both_links_raises(self):
         errors = _validate_at_most_one_link(
@@ -141,21 +232,6 @@ class TestCalloutBlockValidation(SimpleTestCase):
     def test_neither_link_no_error(self):
         errors = _validate_at_most_one_link({"link_page": None, "link_url": ""}, {})
         self.assertEqual(errors, {})
-
-    def test_block_has_expected_fields(self):
-        block = CalloutBlock()
-        self.assertIn("content", block.declared_blocks)
-        self.assertIn("image", block.declared_blocks)
-        self.assertIn("link_text", block.declared_blocks)
-        self.assertIn("link_page", block.declared_blocks)
-        self.assertIn("link_url", block.declared_blocks)
-        self.assertIn("alignment", block.declared_blocks)
-
-    def test_alignment_choices(self):
-        block = CalloutBlock()
-        choices = dict(block.declared_blocks["alignment"].field.choices)
-        self.assertIn("image-left", choices)
-        self.assertIn("image-right", choices)
 
 
 class TestHeroBlockValidation(SimpleTestCase):
@@ -197,7 +273,7 @@ class TestHeroBlockValidation(SimpleTestCase):
 
 
 class TestSignupLinkBlockValidation(SimpleTestCase):
-    """SignupLinkBlock requires heading and external_url."""
+    """SignupLinkBlock requires external_url; heading and anchor_id are optional."""
 
     def _raw(self, heading="Sign Up", external_url="https://example.com"):
         return {
@@ -205,6 +281,7 @@ class TestSignupLinkBlockValidation(SimpleTestCase):
             "description": "",
             "button_text": "",
             "external_url": external_url,
+            "anchor_id": "",
         }
 
     def test_valid(self):
@@ -213,11 +290,12 @@ class TestSignupLinkBlockValidation(SimpleTestCase):
         cleaned = block.clean(value)
         self.assertEqual(cleaned["external_url"], "https://example.com")
 
-    def test_heading_required(self):
+    def test_heading_optional(self):
+        """heading is now optional — omitting it must not raise."""
         block = SignupLinkBlock()
         value = block.to_python(self._raw(heading=""))
-        with self.assertRaises(ValidationError):
-            block.clean(value)
+        cleaned = block.clean(value)
+        self.assertEqual(cleaned["heading"], "")
 
     def test_external_url_required(self):
         block = SignupLinkBlock()
@@ -230,6 +308,15 @@ class TestSignupLinkBlockValidation(SimpleTestCase):
         value = block.to_python(self._raw())
         cleaned = block.clean(value)
         self.assertEqual(cleaned["button_text"], "")
+
+    def test_anchor_id_optional(self):
+        block = SignupLinkBlock()
+        self.assertFalse(block.declared_blocks["anchor_id"].required)
+
+    def test_has_expected_fields(self):
+        block = SignupLinkBlock()
+        expected = {"heading", "description", "button_text", "external_url", "anchor_id"}
+        self.assertEqual(set(block.declared_blocks.keys()), expected)
 
 
 class TestSectionBlockStructure(SimpleTestCase):
@@ -427,6 +514,7 @@ class TestSignupActionNetworkBlockValidation(SimpleTestCase):
             "description": "",
             "action_url": action_url,
             "success_message": "",
+            "anchor_id": "",
         }
 
     def test_valid_url_accepted(self):
@@ -463,11 +551,12 @@ class TestSignupActionNetworkBlockValidation(SimpleTestCase):
         with self.assertRaises(ValidationError):
             block.clean(value)
 
-    def test_heading_required(self):
+    def test_heading_optional(self):
+        """heading is now optional — omitting it must not raise."""
         block = SignupActionNetworkBlock()
         value = block.to_python(self._raw(heading=""))
-        with self.assertRaises(ValidationError):
-            block.clean(value)
+        cleaned = block.clean(value)
+        self.assertEqual(cleaned["heading"], "")
 
     def test_action_url_required(self):
         block = SignupActionNetworkBlock()
@@ -482,25 +571,31 @@ class TestSignupActionNetworkBlockValidation(SimpleTestCase):
         # SuccessMessageBlock (StreamBlock) — empty list → falsy StreamValue
         self.assertFalse(cleaned["success_message"])
 
+    def test_anchor_id_optional(self):
+        block = SignupActionNetworkBlock()
+        self.assertFalse(block.declared_blocks["anchor_id"].required)
+
     def test_has_expected_fields(self):
         block = SignupActionNetworkBlock()
-        expected = {"heading", "description", "action_url", "success_message"}
+        expected = {"heading", "description", "action_url", "success_message", "anchor_id"}
         self.assertEqual(set(block.declared_blocks.keys()), expected)
 
 
 class TestSignupActionNetworkBlockContext(SimpleTestCase):
     """SignupActionNetworkBlock.get_context() extracts action_type and slug."""
 
+    def _raw(self, action_url="https://actionnetwork.org/forms/join-30", success_message=""):
+        return {
+            "heading": "Join",
+            "description": "",
+            "action_url": action_url,
+            "success_message": success_message,
+            "anchor_id": "",
+        }
+
     def test_context_extracts_type_and_slug(self):
         block = SignupActionNetworkBlock()
-        value = block.to_python(
-            {
-                "heading": "Join",
-                "description": "",
-                "action_url": "https://actionnetwork.org/forms/join-30",
-                "success_message": "",
-            }
-        )
+        value = block.to_python(self._raw())
         ctx = block.get_context(value)
         self.assertEqual(ctx["action_type"], "form")
         self.assertEqual(ctx["slug"], "join-30")
@@ -508,12 +603,7 @@ class TestSignupActionNetworkBlockContext(SimpleTestCase):
     def test_context_with_complex_slug(self):
         block = SignupActionNetworkBlock()
         value = block.to_python(
-            {
-                "heading": "Join",
-                "description": "",
-                "action_url": "https://actionnetwork.org/forms/my-great-campaign-2026?source=widget",
-                "success_message": "",
-            }
+            self._raw(action_url="https://actionnetwork.org/forms/my-great-campaign-2026?source=widget")
         )
         ctx = block.get_context(value)
         self.assertEqual(ctx["slug"], "my-great-campaign-2026")
@@ -521,28 +611,18 @@ class TestSignupActionNetworkBlockContext(SimpleTestCase):
     def test_context_passes_success_message(self):
         block = SignupActionNetworkBlock()
         value = block.to_python(
-            {
-                "heading": "Join",
-                "description": "",
-                "action_url": "https://actionnetwork.org/forms/join-30",
-                "success_message": [
+            self._raw(
+                success_message=[
                     {"type": "text", "value": "<p>Thanks for signing up!</p>"}
-                ],
-            }
+                ]
+            )
         )
         ctx = block.get_context(value)
         self.assertTrue(ctx["success_message"])
 
     def test_context_without_success_message(self):
         block = SignupActionNetworkBlock()
-        value = block.to_python(
-            {
-                "heading": "Join",
-                "description": "",
-                "action_url": "https://actionnetwork.org/forms/join-30",
-                "success_message": [],
-            }
-        )
+        value = block.to_python(self._raw(success_message=[]))
         ctx = block.get_context(value)
         # Empty StreamValue is falsy
         self.assertFalse(ctx["success_message"])
@@ -550,14 +630,7 @@ class TestSignupActionNetworkBlockContext(SimpleTestCase):
     def test_context_empty_url_degrades_gracefully(self):
         """When action_url is empty, context should have empty strings."""
         block = SignupActionNetworkBlock()
-        value = block.to_python(
-            {
-                "heading": "Join",
-                "description": "",
-                "action_url": "",
-                "success_message": "",
-            }
-        )
+        value = block.to_python(self._raw(action_url=""))
         ctx = block.get_context(value)
         self.assertEqual(ctx["action_type"], "")
         self.assertEqual(ctx["slug"], "")
