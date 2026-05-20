@@ -1,5 +1,8 @@
 # wagtail-wtr
 
+> [!NOTE]
+> **This project is in pre-alpha development.** We may introduce breaking changes without warning. Please review PR details regularly for summaries of changes when pulling new versions of this repo.
+
 Wagtail build with common organizing features, web best practices, and modern dev tools out of the box.
 
 Built by [With the Ranks](https://withtheranks.com), used as a starting point for campaign, nonprofit, and organizer websites, and updated with new features periodically.
